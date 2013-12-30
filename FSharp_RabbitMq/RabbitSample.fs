@@ -5,8 +5,15 @@
     open System.Xml.Linq
     open FSharp_RabbitMq.Types
        
+
+    type Status =
+        | Start
+        | Stop
+
     type TheGrid(ack, message1CmdQ: RabbitMqPublisher, message2CmdQ: RabbitMqPublisher, count:int) =
         let log msg value = printfn "Message: %s Value: %i" msg value
+        
+        let watch = new System.Diagnostics.Stopwatch()
 
         let supervisor = new Agent<System.Exception>(fun inbox ->
                             let rec Loop() =
@@ -16,20 +23,37 @@
                                     do! Loop() }
                             Loop()) |> Agent.start
 
-        let mainQueueAccountant = 
-            new Agent<float>(fun inbox ->
-                let rec Loop totalSeconds totalCount =
+        let timeKeeper = 
+            new Agent<Status>(fun inbox ->
+                let rec Loop() =
                     async {
                         let! msg = inbox.Receive()
-                        let totalSeconds' = totalSeconds + msg
+
+                        match msg with
+                        | Start -> watch.Start(); do! Loop()
+                        | Stop -> 
+                            //let totalSeconds = (x.Subtract(start)).TotalSeconds
+                            watch.Stop()
+                            printfn "TheGrid processed %f messages/sec. Total Seconds: %f" ((float)count/watch.Elapsed.TotalSeconds) watch.Elapsed.TotalSeconds 
+                        }
+                Loop()) |> Agent.start
+
+        let accountant = 
+            new Agent<_>(fun inbox ->
+                let rec Loop totalCount =
+                    async {
+                        let! msg = inbox.Receive()
+                        
                         let totalCount' = totalCount - 1
                         
                         if (totalCount' = 0) then 
-                            printfn "MainQueueAccountant processed %f messages/sec" ((float)count/totalSeconds')
+                            timeKeeper.Post Stop
 
-                        do! Loop totalSeconds' totalCount' }
-                Loop 0. count) |> Agent.start
-       
+                        do! Loop totalCount' }
+                Loop count) |> Agent.start
+                     
+        member this.StartTimeKeeper() = timeKeeper.Post Start
+
         member this.RouteCommand(extMsg:string, tag:uint64) =
             (new Agent<Command>(fun inbox ->
                 async {
@@ -66,7 +90,7 @@
                             |> fun x-> x.Post msg
                         | _ -> ack msg.Tag; raise (new Exception "Invalid Command") 
                         
-                        mainQueueAccountant.Post watch.Elapsed.TotalSeconds
+                        accountant.Post()
                         })
                 |> Agent.reportErrorsTo supervisor 
                 |> Agent.start)

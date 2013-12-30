@@ -43,7 +43,8 @@ let processRabbit =
     (fun _ -> sub.Start |> ignore) |> watch <| "Start Main Queue Processing"
     (fun _ -> msg1Sub.Start |> ignore) |> watch <| "Start Message1 Queue Processing"
     (fun _ -> msg2Sub.Start |> ignore) |> watch <| "Start Message2 Queue Processing"
-
+    (fun _ -> grid.StartTimeKeeper()) |> watch <| "Start Accountant"
+    
 
 [<EntryPoint>]
 let main argv = 
