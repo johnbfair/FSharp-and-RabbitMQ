@@ -49,7 +49,7 @@ type RabbitMqPublisher (creds, publishType) =
         | Queue x -> async { model.BasicPublish("", x, properties, System.Text.Encoding.ASCII.GetBytes msg) }
         | Exchange x -> async { model.BasicPublish(x, "", properties, System.Text.Encoding.ASCII.GetBytes msg) }
 
-type RabbitMqSubscriber(creds:Credentials, queue: string) = 
+type RabbitMqSubscriber(creds, queue) = 
     let connection = 
         let connectionFactory = new ConnectionFactory()
         connectionFactory.Uri <- creds.Host
@@ -57,10 +57,10 @@ type RabbitMqSubscriber(creds:Credentials, queue: string) =
         connectionFactory.Password <- creds.Password
         connectionFactory.CreateConnection()
     let model = 
-        let m = connection.CreateModel()
-        m.QueueDeclare(queue, true, false, false, null) |> ignore
-        //m.QueueBind(queue, "amq.direct", "")
-        m
+        let model = connection.CreateModel()
+        model.QueueDeclare(queue, true, false, false, null) |> ignore
+        //model.QueueBind(queue, "amq.direct", "")
+        model
     let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
     let consumer = new Events.EventingBasicConsumer (Model= model)
     member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
