@@ -40,10 +40,12 @@ type RabbitMqPublisher (creds, publishType) =
             connectionFactory.Password <- creds.Password
             connectionFactory.Uri <- creds.Host
             
-            let m = connectionFactory.CreateConnection().CreateModel()
-            match publishType with
-            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
-            | _ -> ()
+            use connection =  connectionFactory.CreateConnection()
+            
+            let m = connection.CreateModel()
+//            match publishType with
+//            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
+//            | _ -> ()
             m
 
     let properties = 
@@ -57,7 +59,7 @@ type RabbitMqPublisher (creds, publishType) =
         | Exchange x, None -> async { model.Value.BasicPublish(x, "", properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
         | Exchange x, Some y -> async { model.Value.BasicPublish(x, y, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
 
-type RabbitMqSubscriber(creds, queue) =             
+type RabbitMqSubscriber(creds, queue) =
     let model = 
         lazy 
             let connectionFactory = new ConnectionFactory()
@@ -65,10 +67,12 @@ type RabbitMqSubscriber(creds, queue) =
             connectionFactory.UserName <- creds.Username
             connectionFactory.Password <- creds.Password
 
-            let model = connectionFactory.CreateConnection().CreateModel()
-            model.QueueDeclare(queue, true, false, false, null) |> ignore
-            //model.QueueBind(queue, "amq.direct", "")
-            model
+            use connection =  connectionFactory.CreateConnection()
+        
+            let m = connection.CreateModel()
+//            m.QueueDeclare(queue, true, false, false, null) |> ignore
+//            model.QueueBind(queue, "amq.direct", "")
+            m
     let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
     let consumer = new Events.EventingBasicConsumer (Model= model.Value)
     member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
