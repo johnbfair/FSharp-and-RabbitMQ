@@ -1,15 +1,14 @@
 ﻿open FSharp_RabbitMq.Types
 
+//TODO: If you don't want to use the default RabbitMQ account then change it here
 let host = {Host="amqp://localhost:5672"; Username="guest"; Password="guest"}
 
+// Basic way to measure how long a function takes to execute, unless you're using Async/Agents
 let watch f name =
     let w = System.Diagnostics.Stopwatch.StartNew()
     f()
     w.Stop()
     printfn "Function %s took %i milliseconds to run" name w.ElapsedMilliseconds
-
-let sleepytime time =
-    printfn "Sleeping for %i milliseconds\n" time; System.Threading.Thread.Sleep time
 
 let publishMessages (pub:RabbitMqPublisher) routingKey count =
     [1..count]

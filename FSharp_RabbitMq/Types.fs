@@ -16,12 +16,14 @@ type PublishType =
     | Exchange of string
     | Queue of string
 
+// Sample classes (likely from OOP language like C#)
 type Message1(sample1, value1, messageTag) = 
     member val Sample1 = sample1 with get,set
     member val Value1 = value1 with get,set
     member val MessageTag = messageTag with get,set
     new () = Message1("", 0, 0UL)
 
+// Sample classes (likely from OOP language like C#)
 type Message2(sample2, value2, messageTag) = 
     member val Sample2 = sample2 with get,set
     member val Value2 = value2 with get,set
@@ -33,7 +35,7 @@ type RabbitMqPublisher (creds, publishType) =
     let model =
         let connection = connectionFactory.Value.CreateConnection()
         lazy connection.CreateModel()
-    let properties = lazy model.Value.CreateBasicProperties(DeliveryMode=2uy)
+    let properties = lazy model.Value.CreateBasicProperties(DeliveryMode=2uy) //2uy sets the message properties to Durable
 
     member this.Send (msg:string) (routingKey:string option) = 
         match publishType, routingKey with
