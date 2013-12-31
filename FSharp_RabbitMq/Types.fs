@@ -16,14 +16,6 @@ type PublishType =
     | Exchange of string
     | Queue of string
 
-type CounterMsg =
-    | Add of int64
-    | GetAndReset of (int64 -> unit)
-
-type RoutingKey =
-    | Message1
-    | Message2
-
 type Message1(sample1, value1, messageTag) = 
     member val Sample1 = sample1 with get,set
     member val Value1 = value1 with get,set
@@ -41,12 +33,6 @@ type RabbitMqPublisher (creds, publishType) =
     let model =
         let connection = connectionFactory.Value.CreateConnection()
         lazy connection.CreateModel()
-
-        // Used when I was doing queue declare programmatically which I'm not anymore            
-        //match publishType with
-        //| Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
-        //| _ -> ()
-
     let properties = lazy model.Value.CreateBasicProperties(DeliveryMode=2uy)
 
     member this.Send (msg:string) (routingKey:string option) = 
@@ -60,11 +46,10 @@ type RabbitMqSubscriber(creds, queue) =
     let model = 
         let connection =  connectionFactory.Value.CreateConnection()
         lazy connection.CreateModel()
-        // Used when I was doing queue declare programmatically which I'm not anymore            
-        //m.QueueDeclare(queue, true, false, false, null) |> ignore
-            
-    let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
+    let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> 
+        f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
     let consumer = new Events.EventingBasicConsumer(Model=model.Value)
+
     member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
     member this.Start = model.Value.BasicConsume(queue, false, consumer)
     member this.Working = consumer.IsRunning
