@@ -7,6 +7,9 @@
 
     type TheGrid(ack, message1CmdQ: RabbitMqPublisher, message2CmdQ: RabbitMqPublisher, count:int) =        
         let watch = new System.Diagnostics.Stopwatch()
+        
+        let message1Serializer = lazy XSerializer.XmlSerializer<Message1>()
+        let message2Serializer = lazy XSerializer.XmlSerializer<Message2>()
 
         let supervisor = new Agent<System.Exception>(fun inbox ->
                             let rec Loop() =
@@ -95,7 +98,7 @@
             |> Agent.start)
             |> fun x-> 
                 // Because we're doing our own Content Based Routing we know the type explicitly
-                let msg = XSerializer.XmlSerializer<Message1>().Deserialize(extMsg) 
+                let msg = message1Serializer.Value.Deserialize(extMsg)
                 msg.MessageTag <- tag
                 msg |> x.Post
 
@@ -111,6 +114,6 @@
             |> Agent.start)
             |> fun x-> 
                 // Because we're doing our own Content Based Routing we know the type explicitly
-                let msg = XSerializer.XmlSerializer<Message2>().Deserialize(extMsg) 
+                let msg = message2Serializer.Value.Deserialize(extMsg) 
                 msg.MessageTag <- tag
                 msg |> x.Post

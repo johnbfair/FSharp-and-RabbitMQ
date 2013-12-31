@@ -37,47 +37,34 @@ type Message2(sample2, value2, messageTag) =
     new () = Message2("", 0, 0UL)
         
 type RabbitMqPublisher (creds, publishType) = 
-    let model = 
-        lazy 
-            let connectionFactory = new ConnectionFactory()
-            connectionFactory.UserName <- creds.Username
-            connectionFactory.Password <- creds.Password
-            connectionFactory.Uri <- creds.Host
-            
-            use connection =  connectionFactory.CreateConnection()
-            
-            let m = connection.CreateModel()
-            match publishType with
-            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
-            | _ -> ()
-            m
+    let connectionFactory = lazy new ConnectionFactory(UserName=creds.Username, Password=creds.Password, Uri=creds.Host)
+    let model =
+        let connection = connectionFactory.Value.CreateConnection()
+        lazy connection.CreateModel()
 
-    let properties = 
-        lazy
-            let p = model.Value.CreateBasicProperties()
-            p.SetPersistent true; p
+        // Used when I was doing queue declare programmatically which I'm not anymore            
+        //match publishType with
+        //| Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
+        //| _ -> ()
+
+    let properties = lazy model.Value.CreateBasicProperties(DeliveryMode=2uy)
 
     member this.Send (msg:string) (routingKey:string option) = 
         match publishType, routingKey with
-        | Queue x, _ -> async { model.Value.BasicPublish("amq.direct", x, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
-        | Exchange x, None -> async { model.Value.BasicPublish(x, "", properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
-        | Exchange x, Some y -> async { model.Value.BasicPublish(x, y, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Queue x, _         -> async { model.Value.BasicPublish("", x, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Exchange x, None   -> async { model.Value.BasicPublish(x, "", properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Exchange x, Some y -> async { model.Value.BasicPublish(x,  y, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
 
 type RabbitMqSubscriber(creds, queue) =
+    let connectionFactory = lazy new ConnectionFactory(UserName=creds.Username, Password=creds.Password, Uri=creds.Host)    
     let model = 
-        lazy 
-            let connectionFactory = new ConnectionFactory()
-            connectionFactory.Uri <- creds.Host
-            connectionFactory.UserName <- creds.Username
-            connectionFactory.Password <- creds.Password
-
-            use connection =  connectionFactory.CreateConnection()
-        
-            let m = connection.CreateModel()
-            m.QueueDeclare(queue, true, false, false, null) |> ignore
-            m
+        let connection =  connectionFactory.Value.CreateConnection()
+        lazy connection.CreateModel()
+        // Used when I was doing queue declare programmatically which I'm not anymore            
+        //m.QueueDeclare(queue, true, false, false, null) |> ignore
+            
     let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
-    let consumer = new Events.EventingBasicConsumer (Model= model.Value)
+    let consumer = new Events.EventingBasicConsumer(Model=model.Value)
     member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
     member this.Start = model.Value.BasicConsume(queue, false, consumer)
     member this.Working = consumer.IsRunning

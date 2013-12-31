@@ -46,11 +46,12 @@ let processRabbit_CBR(count) =
     msg2Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage2Command (fun a -> msg2Sub.AckMessage a) (x,y))
 
     publishMessages pub None count
-    
+
+    grid.StartTimeKeeper()
+        
     sub.Start |> ignore
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
-    grid.StartTimeKeeper()
     
 let processRabbit_Routing(count) =
     printfn "Starting RabbitMQ with Routing processing"
@@ -67,25 +68,26 @@ let processRabbit_Routing(count) =
 
     publishMessages pub (Some "message") count    
 
+    grid.StartTimeKeeper()
+
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
-    grid.StartTimeKeeper()
+
 
 [<EntryPoint>]
 let main argv = 
-    let rec loop() =
+    let loop() =
         printfn "Enter the number of Messages to process: "
         let count = System.Console.ReadLine() |> System.Int32.Parse
-        let milliseconds = count * 100
 
-        processRabbit_CBR(count)
+        //processRabbit_CBR(count)
         
         //printfn"Press enter to start the next test"; System.Console.ReadLine() |> ignore
 
-        //processRabbit_Routing(count)
+        processRabbit_Routing(count)
         
-        printfn"Press enter to restart the tests"; System.Console.ReadLine() |> ignore
+        //printfn"Press enter to restart the tests"; System.Console.ReadLine() |> ignore
 
-        loop()
+        //loop()
     loop()
     0 // return an integer exit code
