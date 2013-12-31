@@ -20,6 +20,10 @@ type CounterMsg =
     | Add of int64
     | GetAndReset of (int64 -> unit)
 
+type RoutingKey =
+    | Message1
+    | Message2
+
 type Message1(sample1, value1, messageTag) = 
     member val Sample1 = sample1 with get,set
     member val Value1 = value1 with get,set
@@ -43,9 +47,9 @@ type RabbitMqPublisher (creds, publishType) =
             use connection =  connectionFactory.CreateConnection()
             
             let m = connection.CreateModel()
-//            match publishType with
-//            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
-//            | _ -> ()
+            match publishType with
+            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
+            | _ -> ()
             m
 
     let properties = 
@@ -55,7 +59,7 @@ type RabbitMqPublisher (creds, publishType) =
 
     member this.Send (msg:string) (routingKey:string option) = 
         match publishType, routingKey with
-        | Queue x, _ -> async { model.Value.BasicPublish("", x, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Queue x, _ -> async { model.Value.BasicPublish("amq.direct", x, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
         | Exchange x, None -> async { model.Value.BasicPublish(x, "", properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
         | Exchange x, Some y -> async { model.Value.BasicPublish(x, y, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
 
@@ -70,8 +74,7 @@ type RabbitMqSubscriber(creds, queue) =
             use connection =  connectionFactory.CreateConnection()
         
             let m = connection.CreateModel()
-//            m.QueueDeclare(queue, true, false, false, null) |> ignore
-//            model.QueueBind(queue, "amq.direct", "")
+            m.QueueDeclare(queue, true, false, false, null) |> ignore
             m
     let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
     let consumer = new Events.EventingBasicConsumer (Model= model.Value)
