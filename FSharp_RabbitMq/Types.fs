@@ -8,6 +8,10 @@ type Credentials = { Host:string; Username:string; Password:string }
 
 type Command = {Message:string; Tag:uint64}
 
+type Status =
+    | Start
+    | Stop
+
 type PublishType =
     | Exchange of string
     | Queue of string
@@ -29,44 +33,48 @@ type Message2(sample2, value2, messageTag) =
     new () = Message2("", 0, 0UL)
         
 type RabbitMqPublisher (creds, publishType) = 
-    let connection = 
-        let connectionFactory = new ConnectionFactory()
-        connectionFactory.UserName <- creds.Username
-        connectionFactory.Password <- creds.Password
-        connectionFactory.Uri <- creds.Host
-        connectionFactory.CreateConnection()
     let model = 
-        let m = connection.CreateModel()
-        match publishType with
-        | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
-        | _ -> ()
-        m
-    let properties = 
-        let p = model.CreateBasicProperties()
-        p.DeliveryMode <- 2uy; p
-    member this.Send (msg:string) = 
-        match publishType with
-        | Queue x -> async { model.BasicPublish("", x, properties, System.Text.Encoding.ASCII.GetBytes msg) }
-        | Exchange x -> async { model.BasicPublish(x, "", properties, System.Text.Encoding.ASCII.GetBytes msg) }
+        lazy 
+            let connectionFactory = new ConnectionFactory()
+            connectionFactory.UserName <- creds.Username
+            connectionFactory.Password <- creds.Password
+            connectionFactory.Uri <- creds.Host
+            
+            let m = connectionFactory.CreateConnection().CreateModel()
+            match publishType with
+            | Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
+            | _ -> ()
+            m
 
-type RabbitMqSubscriber(creds, queue) = 
-    let connection = 
-        let connectionFactory = new ConnectionFactory()
-        connectionFactory.Uri <- creds.Host
-        connectionFactory.UserName <- creds.Username
-        connectionFactory.Password <- creds.Password
-        connectionFactory.CreateConnection()
+    let properties = 
+        lazy
+            let p = model.Value.CreateBasicProperties()
+            p.SetPersistent true; p
+
+    member this.Send (msg:string) (routingKey:string option) = 
+        match publishType, routingKey with
+        | Queue x, _ -> async { model.Value.BasicPublish("", x, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Exchange x, None -> async { model.Value.BasicPublish(x, "", properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+        | Exchange x, Some y -> async { model.Value.BasicPublish(x, y, properties.Value, System.Text.Encoding.ASCII.GetBytes msg) }
+
+type RabbitMqSubscriber(creds, queue) =             
     let model = 
-        let model = connection.CreateModel()
-        model.QueueDeclare(queue, true, false, false, null) |> ignore
-        //model.QueueBind(queue, "amq.direct", "")
-        model
+        lazy 
+            let connectionFactory = new ConnectionFactory()
+            connectionFactory.Uri <- creds.Host
+            connectionFactory.UserName <- creds.Username
+            connectionFactory.Password <- creds.Password
+
+            let model = connectionFactory.CreateConnection().CreateModel()
+            model.QueueDeclare(queue, true, false, false, null) |> ignore
+            //model.QueueBind(queue, "amq.direct", "")
+            model
     let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
-    let consumer = new Events.EventingBasicConsumer (Model= model)
+    let consumer = new Events.EventingBasicConsumer (Model= model.Value)
     member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
-    member this.Start = model.BasicConsume(queue, false, consumer)
+    member this.Start = model.Value.BasicConsume(queue, false, consumer)
     member this.Working = consumer.IsRunning
-    member this.AckMessage tag = model.BasicAck(tag, false)
+    member this.AckMessage tag = model.Value.BasicAck(tag, false)
 
 module Agent =
     let reportErrorsTo (supervisor: Agent<exn>) (agent: Agent<_>) =

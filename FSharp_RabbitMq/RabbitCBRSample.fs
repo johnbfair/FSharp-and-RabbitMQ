@@ -1,25 +1,18 @@
-﻿module RabbitSample
+﻿module RabbitCBRSample
 
     open System
     open System.Xml
     open System.Xml.Linq
     open FSharp_RabbitMq.Types
-       
 
-    type Status =
-        | Start
-        | Stop
-
-    type TheGrid(ack, message1CmdQ: RabbitMqPublisher, message2CmdQ: RabbitMqPublisher, count:int) =
-        let log msg value = printfn "Message: %s Value: %i" msg value
-        
+    type TheGrid(ack, message1CmdQ: RabbitMqPublisher, message2CmdQ: RabbitMqPublisher, count:int) =        
         let watch = new System.Diagnostics.Stopwatch()
 
         let supervisor = new Agent<System.Exception>(fun inbox ->
                             let rec Loop() =
                                 async {
                                     let! err = inbox.Receive()
-                                    log err.Message 0
+                                    printfn "An error occurred: %s" err.Message
                                     do! Loop() }
                             Loop()) |> Agent.start
 
@@ -32,9 +25,8 @@
                         match msg with
                         | Start -> watch.Start(); do! Loop()
                         | Stop -> 
-                            //let totalSeconds = (x.Subtract(start)).TotalSeconds
                             watch.Stop()
-                            printfn "TheGrid processed %f messages/sec. Total Seconds: %f" ((float)count/watch.Elapsed.TotalSeconds) watch.Elapsed.TotalSeconds 
+                            printfn "Rabbit CBR processed %f messages/sec. Total Seconds: %f" ((float)count/watch.Elapsed.TotalSeconds) watch.Elapsed.TotalSeconds 
                         }
                 Loop()) |> Agent.start
 
@@ -50,7 +42,7 @@
                             timeKeeper.Post Stop
 
                         do! Loop totalCount' }
-                Loop count) |> Agent.start
+                Loop (count*2)) |> Agent.start
                      
         member this.StartTimeKeeper() = timeKeeper.Post Start
 
@@ -61,11 +53,6 @@
 
                         let! msg = inbox.Receive()
                         let msgType =
-//                            let xml = XDocument.Parse(msg.Message)
-//                            match xml.Root with
-//                            | null -> raise (new Exception "Couldn't determine message type (null root)")
-//                            | root -> root.Name.LocalName
-
                             match System.Text.RegularExpressions.Regex.Match(msg.Message, "<(?<tag>\w*)>") with
                             | x when x.Success -> x.Groups.[1].Value
                             | _ -> raise (new Exception "Couldn't determine message type (null root)")
@@ -75,7 +62,7 @@
                             (new Agent<Command>(fun inbox ->
                                                     async {
                                                         let! x = inbox.Receive()
-                                                        let! m = message1CmdQ.Send x.Message
+                                                        let! m = message1CmdQ.Send x.Message None
                                                         ack x.Tag
                                                     }) |> Agent.reportErrorsTo supervisor |> Agent.start) 
                             |> fun x-> x.Post msg
@@ -84,7 +71,7 @@
                             (new Agent<Command>(fun inbox ->
                                                     async {
                                                         let! x = inbox.Receive()
-                                                        let! m = message2CmdQ.Send x.Message
+                                                        let! m = message2CmdQ.Send x.Message None
                                                         ack x.Tag
                                                     }) |> Agent.reportErrorsTo supervisor |> Agent.start) 
                             |> fun x-> x.Post msg
@@ -100,8 +87,9 @@
             (new Agent<Message1>(fun inbox ->
                 async {
                     let! msg = inbox.Receive()
-                    //log msg.Sample1 msg.Value1
                     ack msg.MessageTag
+
+                    accountant.Post()
                 })
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
@@ -114,8 +102,9 @@
             (new Agent<Message2>(fun inbox ->
                 async {
                     let! msg = inbox.Receive()
-                    //log msg.Sample2 msg.Value2
                     ack msg.MessageTag
+
+                    accountant.Post()
                 })
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
