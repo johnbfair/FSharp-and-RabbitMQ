@@ -76,18 +76,14 @@ let processRabbit_Routing(count) =
 
 [<EntryPoint>]
 let main argv = 
-    let loop() =
-        printfn "Enter the number of Messages to process: "
-        let count = System.Console.ReadLine() |> System.Int32.Parse
+    printfn "Enter the number of Messages to process: "
+    let count = System.Console.ReadLine() |> System.Int32.Parse
 
-        //processRabbit_CBR(count)
+    processRabbit_CBR(count)
         
-        //printfn"Press enter to start the next test"; System.Console.ReadLine() |> ignore
+    printfn "\nPress enter to start the next test after the results of the first post here"; 
+    System.Console.ReadLine() |> ignore
 
-        processRabbit_Routing(count)
+    processRabbit_Routing(count)
         
-        //printfn"Press enter to restart the tests"; System.Console.ReadLine() |> ignore
-
-        //loop()
-    loop()
     0 // return an integer exit code
