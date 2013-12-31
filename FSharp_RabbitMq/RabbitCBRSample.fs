@@ -94,7 +94,8 @@
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
             |> fun x-> 
-                let msg = Rock.Framework.Serialization.XmlObjectSerializer.XmlToObject<Message1>(extMsg) 
+                // Because we're doing our own Content Based Routing we know the type explicitly
+                let msg = XSerializer.XmlSerializer<Message1>().Deserialize(extMsg) 
                 msg.MessageTag <- tag
                 msg |> x.Post
 
@@ -109,6 +110,7 @@
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
             |> fun x-> 
-                let msg = Rock.Framework.Serialization.XmlObjectSerializer.XmlToObject<Message2>(extMsg) 
+                // Because we're doing our own Content Based Routing we know the type explicitly
+                let msg = XSerializer.XmlSerializer<Message2>().Deserialize(extMsg) 
                 msg.MessageTag <- tag
                 msg |> x.Post

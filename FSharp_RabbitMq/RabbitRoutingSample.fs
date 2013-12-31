@@ -58,10 +58,10 @@
             |> Agent.start)
             |> fun x-> 
                 try 
-                    let msg = Rock.Framework.Serialization.XmlObjectSerializer.XmlToObject<Message1>(extMsg)
+                    let msg = XSerializer.XmlSerializer<Message1>().Deserialize(extMsg) 
                     msg.MessageTag <- tag
                     msg |> x.Post
-                with
+                with // This will fail if we put the wrong type of message on the queue
                 | exn as Exception -> printfn "Exception: %s" exn.Message
 
         member this.ProcessMessage2Command ack (extMsg:string, tag:uint64) =
@@ -76,8 +76,8 @@
             |> Agent.start)
             |> fun x-> 
                 try
-                    let msg = Rock.Framework.Serialization.XmlObjectSerializer.XmlToObject<Message2>(extMsg) 
+                    let msg = XSerializer.XmlSerializer<Message2>().Deserialize(extMsg) 
                     msg.MessageTag <- tag
                     msg |> x.Post
-                with
+                with // This will fail if we put the wrong type of message on the queue
                 | exn as Exception -> printfn "Exception: %s" exn.Message
