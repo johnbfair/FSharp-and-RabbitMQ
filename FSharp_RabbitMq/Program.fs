@@ -33,21 +33,29 @@ let processRabbit_CBR(count) =
     let pub     = RabbitMqPublisher(host, Queue "cbr-main")
     let msg1Pub = RabbitMqPublisher(host, Queue "cbr-message1")
     let msg2Pub = RabbitMqPublisher(host, Queue "cbr-message2")
-
     let sub     = RabbitMqSubscriber(host, "cbr-main")
     let msg1Sub = RabbitMqSubscriber(host, "cbr-message1")
     let msg2Sub = RabbitMqSubscriber(host, "cbr-message2")
 
     let grid = RabbitCBRSample.TheGrid(sub.AckMessage, msg1Pub, msg2Pub, count)
 
-    sub.BindReceivedEvent (fun x y -> grid.RouteCommand(x,y))
+    // Since we're waiting on confirms we need to listen to the event that occurs if a confirm fails
+    pub.BindNackEvent     (fun x y -> printfn "Error occurred while sending. Requeued? %A DeliveryTag: %i" x y)
+    msg1Pub.BindNackEvent (fun x y -> printfn "Error occurred while sending. Requeued? %A DeliveryTag: %i" x y)
+    msg2Pub.BindNackEvent (fun x y -> printfn "Error occurred while sending. Requeued? %A DeliveryTag: %i" x y)
+
+    // Bind the event that fires when we receive a message from RabbitMQ
+    sub.BindReceivedEvent     (fun x y -> grid.RouteCommand(x,y))
     msg1Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage1Command (fun a -> msg1Sub.AckMessage a) (x,y))
     msg2Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage2Command (fun a -> msg2Sub.AckMessage a) (x,y))
 
+    // Trigger message send
     publishMessages pub None count
 
+    // Start Timing
     grid.StartTimeKeeper()
         
+    // Start the listeners
     sub.Start |> ignore
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
@@ -56,22 +64,27 @@ let processRabbit_Routing(count) =
     printfn "Starting RabbitMQ with Routing processing"
     
     let pub     = RabbitMqPublisher(host, Exchange "amq.direct")
-
     let msg1Sub = RabbitMqSubscriber(host, "routing-message1")
     let msg2Sub = RabbitMqSubscriber(host, "routing-message2")
 
     let grid = RabbitRoutingSample.TheGrid(count)
 
+    // Since we're waiting on confirms we need to listen to the event that occurs if a confirm fails
+    pub.BindNackEvent     (fun x y -> printfn "Error occurred while sending. Requeued? %A DeliveryTag: %i" x y)
+
+    // Bind the event that fires when we receive a message from RabbitMQ
     msg1Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage1Command (fun a -> msg1Sub.AckMessage a) (x,y))
     msg2Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage2Command (fun a -> msg2Sub.AckMessage a) (x,y))
 
+    // Trigger message send
     publishMessages pub (Some "message") count    
 
+    // Start Timing
     grid.StartTimeKeeper()
 
+    // Start the listeners
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
-
 
 [<EntryPoint>]
 let main argv = 

@@ -8,9 +8,12 @@
     type TheGrid(ack, message1CmdQ: RabbitMqPublisher, message2CmdQ: RabbitMqPublisher, count:int) =        
         let watch = new System.Diagnostics.Stopwatch()
         
+        // Due to the way XSerializer caches the default serializer we're better off
+        // newing them up a single time and using the cached instance (for perf)
         let message1Serializer = lazy XSerializer.XmlSerializer<Message1>()
         let message2Serializer = lazy XSerializer.XmlSerializer<Message2>()
 
+        // Error handling supervisor
         let supervisor = new Agent<System.Exception>(fun inbox ->
                             let rec Loop() =
                                 async {
@@ -19,6 +22,8 @@
                                     do! Loop() }
                             Loop()) |> Agent.start
 
+        // Timekeeper is responsible for starting/stopping the stopwatch that determines how long
+        // it takes to execute *count* messages.
         let timeKeeper = 
             new Agent<Status>(fun inbox ->
                 let rec Loop() =
@@ -33,6 +38,8 @@
                         }
                 Loop()) |> Agent.start
 
+        // The Accountant is responsible for keeping track of how many messages have been processed so far out of
+        // *count* messages. Once we reach zero (counting backwards) it issues the Stop command to the Timekeeper
         let accountant = 
             new Agent<_>(fun inbox ->
                 let rec Loop totalCount =
@@ -45,16 +52,18 @@
                             timeKeeper.Post Stop
 
                         do! Loop totalCount' }
+                // Double the count due to this type of processing (CBR)
                 Loop (count*2)) |> Agent.start
                      
         member this.StartTimeKeeper() = timeKeeper.Post Start
 
+        // This takes the initial message off the queue, determines its type, and sends it to the appropriate queue
         member this.RouteCommand(extMsg:string, tag:uint64) =
             (new Agent<Command>(fun inbox ->
                 async {
-                        let watch = System.Diagnostics.Stopwatch.StartNew()
-
                         let! msg = inbox.Receive()
+                        // Use the RegExes to figure out what kind of message we have. This is typically how CBR is done
+                        // but inside of the ESB/MQ
                         let msgType =
                             match System.Text.RegularExpressions.Regex.Match(msg.Message, "<(?<tag>\w*)>") with
                             | x when x.Success -> x.Groups.[1].Value
@@ -80,6 +89,7 @@
                             |> fun x-> x.Post msg
                         | _ -> ack msg.Tag; raise (new Exception "Invalid Command") 
                         
+                        // Tell the account that this message is complete
                         accountant.Post()
                         })
                 |> Agent.reportErrorsTo supervisor 
@@ -97,7 +107,7 @@
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
             |> fun x-> 
-                // Because we're doing our own Content Based Routing we know the type explicitly
+                // Because we're doing our own Content Based Routing we know the type explicitly (i.e. no try/with)
                 let msg = message1Serializer.Value.Deserialize(extMsg)
                 msg.MessageTag <- tag
                 msg |> x.Post
@@ -113,7 +123,7 @@
             |> Agent.reportErrorsTo supervisor 
             |> Agent.start)
             |> fun x-> 
-                // Because we're doing our own Content Based Routing we know the type explicitly
+                // Because we're doing our own Content Based Routing we know the type explicitly (i.e. no try/with)
                 let msg = message2Serializer.Value.Deserialize(extMsg) 
                 msg.MessageTag <- tag
                 msg |> x.Post
