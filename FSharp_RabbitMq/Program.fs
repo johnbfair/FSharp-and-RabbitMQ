@@ -27,12 +27,12 @@ let publishMessages (pub:RabbitMqPublisher) routingKey count =
     |> Async.RunSynchronously
     |> ignore
 
-let processRabbit_CBR(count) =
-    printfn "Starting RabbitMQ with CBR processing"
+let processRabbit_CBR count persist =
+    printfn "Starting RabbitMQ with CBR processing, Persistence: %b" persist
     
-    let pub     = RabbitMqPublisher(host, Queue "cbr-main")
-    let msg1Pub = RabbitMqPublisher(host, Queue "cbr-message1")
-    let msg2Pub = RabbitMqPublisher(host, Queue "cbr-message2")
+    let pub     = RabbitMqPublisher(host, Queue "cbr-main", persist)
+    let msg1Pub = RabbitMqPublisher(host, Queue "cbr-message1", persist)
+    let msg2Pub = RabbitMqPublisher(host, Queue "cbr-message2", persist)
     let sub     = RabbitMqSubscriber(host, "cbr-main")
     let msg1Sub = RabbitMqSubscriber(host, "cbr-message1")
     let msg2Sub = RabbitMqSubscriber(host, "cbr-message2")
@@ -50,7 +50,7 @@ let processRabbit_CBR(count) =
     msg2Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage2Command (fun a -> msg2Sub.AckMessage a) (x,y))
 
     // Trigger message send
-    publishMessages pub None count
+    (fun _ -> publishMessages pub None count) |> watch <| sprintf "Sending %i Messages" count
 
     // Start Timing
     grid.StartTimeKeeper()
@@ -60,10 +60,10 @@ let processRabbit_CBR(count) =
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
     
-let processRabbit_Routing(count) =
-    printfn "Starting RabbitMQ with Routing processing"
+let processRabbit_Routing count persist =
+    printfn "Starting RabbitMQ with Routing processing, Persistence: %b" persist
     
-    let pub     = RabbitMqPublisher(host, Exchange "amq.direct")
+    let pub     = RabbitMqPublisher(host, Exchange "amq.direct", persist)
     let msg1Sub = RabbitMqSubscriber(host, "routing-message1")
     let msg2Sub = RabbitMqSubscriber(host, "routing-message2")
 
@@ -77,7 +77,7 @@ let processRabbit_Routing(count) =
     msg2Sub.BindReceivedEvent (fun x y -> grid.ProcessMessage2Command (fun a -> msg2Sub.AckMessage a) (x,y))
 
     // Trigger message send
-    publishMessages pub (Some "message") count    
+    (fun _ -> publishMessages pub (Some "message") count) |> watch <| sprintf "Sending %i Messages" count
 
     // Start Timing
     grid.StartTimeKeeper()
@@ -89,13 +89,16 @@ let processRabbit_Routing(count) =
 [<EntryPoint>]
 let main argv = 
     printfn "Enter the number of Messages to process: "
+    
+    // Don't be a jerk and enter letters...or do; it really doesn't matter to me. :)
     let count = System.Console.ReadLine() |> System.Int32.Parse
-
-    processRabbit_CBR(count)
-        
+    
+    processRabbit_CBR count true
+    
     printfn "\nPress enter to start the next test after the results of the first post here"; 
     System.Console.ReadLine() |> ignore
 
-    processRabbit_Routing(count)
+    processRabbit_Routing count true
 
+    System.Console.ReadLine() |> ignore
     0 // return an integer exit code

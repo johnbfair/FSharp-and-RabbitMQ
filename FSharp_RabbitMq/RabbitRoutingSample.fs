@@ -6,8 +6,6 @@
     open FSharp_RabbitMq.Types
 
     type TheGrid(count:int) =        
-        let watch = new System.Diagnostics.Stopwatch()
-
         let supervisor = new Agent<System.Exception>(fun inbox ->
                             let rec Loop() =
                                 async {
@@ -17,6 +15,7 @@
                             Loop()) |> Agent.start
 
         let timeKeeper = 
+            let watch = new System.Diagnostics.Stopwatch()
             new Agent<Status>(fun inbox ->
                 let rec Loop() =
                     async {
@@ -30,7 +29,7 @@
                         }
                 Loop()) |> Agent.start
 
-        let accountant = 
+        let accountant =           
             new Agent<_>(fun inbox ->
                 let rec Loop totalCount =
                     async {
@@ -40,8 +39,8 @@
                         
                         if (totalCount' = 0) then 
                             timeKeeper.Post Stop
-
-                        do! Loop totalCount' }
+                        else
+                            do! Loop totalCount' }
                 Loop count) |> Agent.start
                      
         member this.StartTimeKeeper() = timeKeeper.Post Start
