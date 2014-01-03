@@ -63,9 +63,9 @@ type RabbitMqPublisher (creds, publishType, persist) =
             model.Value.BasicPublish(exchange, routingKey, properties.Value, System.Text.Encoding.ASCII.GetBytes msg)            
         }
     
-    let receiveMessage f = new Events.BasicNackEventHandler(fun sender args -> f args.Requeue args.DeliveryTag)
+    let receiveMessage callback = new Events.BasicNackEventHandler(fun sender args -> callback args.Requeue args.DeliveryTag)
 
-    member this.BindNackEvent f = model.Value.add_BasicNacks(receiveMessage f)
+    member this.BindNackEvent callback = model.Value.add_BasicNacks(receiveMessage callback)
 
     member this.Send (msg:string) (routingKey:string option) = 
         let send = sendMsg msg
