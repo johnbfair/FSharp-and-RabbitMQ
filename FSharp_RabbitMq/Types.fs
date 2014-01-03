@@ -81,11 +81,11 @@ type RabbitMqSubscriber(creds, queue) =
         lazy connection.CreateModel()
         // Used when I was doing queue declare programmatically which I'm not anymore            
         //m.QueueDeclare(queue, true, false, false, null) |> ignore 
-    let receiveMessage f = new Events.BasicDeliverEventHandler(fun sender args -> 
-        f (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
+    let receiveMessage callback = new Events.BasicDeliverEventHandler(fun sender args -> 
+        callback (System.Text.Encoding.ASCII.GetString args.Body) args.DeliveryTag)
     let consumer = new Events.EventingBasicConsumer(Model=model.Value)
 
-    member this.BindReceivedEvent f = consumer.add_Received(receiveMessage f)
+    member this.BindReceivedEvent callback = consumer.add_Received(receiveMessage callback)
     member this.Start = model.Value.BasicConsume(queue, false, consumer)
     member this.Working = consumer.IsRunning
     member this.AckMessage tag = model.Value.BasicAck(tag, false)
