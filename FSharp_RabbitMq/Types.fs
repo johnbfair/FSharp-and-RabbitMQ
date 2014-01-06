@@ -67,8 +67,7 @@ type RabbitMqPublisher (creds, publishType, persist) =
 
     member this.EnsureConfirms(timeout) =             
         //TODO: Implement a retry system when a Confirm is not sent
-        // Enure it was either picked up or written to disk
-        //model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(1000.))
+        //Enure it was either picked up or written to disk
         model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(timeout))
 
     member this.BindNackEvent callback = model.Value.add_BasicNacks(receiveMessage callback)
