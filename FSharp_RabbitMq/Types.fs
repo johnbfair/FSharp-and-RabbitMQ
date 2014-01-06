@@ -36,7 +36,7 @@ module Agent =
 
     let start (agent: Agent<_>) = agent.Start(); agent
 
-    let stop (agent: Agent<_>) = (agent :> System.IDisposable).Dispose()
+    //let stop (agent: Agent<_>) = (agent :> System.IDisposable).Dispose()
         
 type RabbitMqPublisher (creds, publishType, persist) = 
     let connectionFactory = lazy new ConnectionFactory(UserName=creds.Username, Password=creds.Password, Uri=creds.Host)
@@ -45,25 +45,31 @@ type RabbitMqPublisher (creds, publishType, persist) =
         let model = lazy connection.CreateModel()
         
         if (persist) then
-        // Setting a channel into confirm mode by calling IModel.ConfirmSelect causes the broker to send a Basic.Ack 
-        // after each message is processed by delivering to a ready consumer or by persisting to disk.
+            // Setting a channel into confirm mode by calling IModel.ConfirmSelect causes the broker to send a Basic.Ack 
+            // after each message is processed by delivering to a ready consumer or by persisting to disk.
             model.Value.ConfirmSelect()
-        // Enure it was either picked up or written to disk
-            model.Value.WaitForConfirmsOrDie()
-        
-        model
+            //model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(10.))
         // Used when I was doing queue declare programmatically which I'm not anymore            
         //match publishType with
-        //| Queue x -> m.QueueDeclare(x, true, false, false, null) |> ignore
+        //| Queue x -> model.Value.QueueDeclare(x, true, false, false, null) |> ignore
         //| _ -> ()
+
+        model
+
     let properties = lazy model.Value.CreateBasicProperties(DeliveryMode=2uy) //2uy sets the message properties to Durable
 
     let sendMsg (msg:string) (exchange, routingKey) =
         async { 
-            model.Value.BasicPublish(exchange, routingKey, properties.Value, System.Text.Encoding.ASCII.GetBytes msg)            
+            model.Value.BasicPublish(exchange, routingKey, properties.Value, System.Text.Encoding.ASCII.GetBytes msg)       
         }
     
     let receiveMessage callback = new Events.BasicNackEventHandler(fun sender args -> callback args.Requeue args.DeliveryTag)
+
+    member this.EnsureConfirms(timeout) =             
+        //TODO: Implement a retry system when a Confirm is not sent
+        // Enure it was either picked up or written to disk
+        //model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(1000.))
+        model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(timeout))
 
     member this.BindNackEvent callback = model.Value.add_BasicNacks(receiveMessage callback)
 

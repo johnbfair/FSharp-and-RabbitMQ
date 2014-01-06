@@ -27,6 +27,8 @@ let publishMessages (pub:RabbitMqPublisher) routingKey count =
     |> Async.RunSynchronously
     |> ignore
 
+    pub.EnsureConfirms(100.)
+
 let processRabbit_CBR count persist =
     printfn "Starting RabbitMQ with CBR processing, Persistence: %b" persist
     
