@@ -48,7 +48,7 @@ type RabbitMqPublisher (creds, publishType, persist) =
             // Setting a channel into confirm mode by calling IModel.ConfirmSelect causes the broker to send a Basic.Ack 
             // after each message is processed by delivering to a ready consumer or by persisting to disk.
             model.Value.ConfirmSelect()
-            //model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(10.))
+
         // Used when I was doing queue declare programmatically which I'm not anymore            
         //match publishType with
         //| Queue x -> model.Value.QueueDeclare(x, true, false, false, null) |> ignore
@@ -66,8 +66,9 @@ type RabbitMqPublisher (creds, publishType, persist) =
     let receiveMessage callback = new Events.BasicNackEventHandler(fun sender args -> callback args.Requeue args.DeliveryTag)
 
     member this.EnsureConfirms(timeout) =             
-        //TODO: Implement a retry system when a Confirm is not sent
         //Enure it was either picked up or written to disk
+        //If this timeout is <100ms (network latency?) it will usually fail w/ System.IO.IOException per message
+        //TODO: Implement a retry system when the System.IO.IOException occurs
         model.Value.WaitForConfirmsOrDie(System.TimeSpan.FromMilliseconds(timeout))
 
     member this.BindNackEvent callback = model.Value.add_BasicNacks(receiveMessage callback)
