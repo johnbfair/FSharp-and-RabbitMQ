@@ -38,16 +38,11 @@ module Agent =
 
     //let stop (agent: Agent<_>) = (agent :> System.IDisposable).Dispose()
         
-type RabbitMqPublisher (creds, publishType, persist) = 
+type RabbitMqPublisher (creds, publishType) = 
     let connectionFactory = lazy new ConnectionFactory(UserName=creds.Username, Password=creds.Password, Uri=creds.Host)
     let model =
         let connection = connectionFactory.Value.CreateConnection()
         let model = lazy connection.CreateModel()
-        
-        if (persist) then
-            // Setting a channel into confirm mode by calling IModel.ConfirmSelect causes the broker to send a Basic.Ack 
-            // after each message is processed by delivering to a ready consumer or by persisting to disk.
-            model.Value.ConfirmSelect()
 
         // Used when I was doing queue declare programmatically which I'm not anymore            
         //match publishType with
@@ -65,7 +60,10 @@ type RabbitMqPublisher (creds, publishType, persist) =
     
     let receiveMessage callback = new Events.BasicNackEventHandler(fun sender args -> callback args.Requeue args.DeliveryTag)
 
-    member this.EnsureConfirms(timeout) =             
+    member this.EnsureConfirms(timeout) =     
+        // Setting a channel into confirm mode by calling IModel.ConfirmSelect causes the broker to send a Basic.Ack 
+        // after each message is processed by delivering to a ready consumer or by persisting to disk.        
+        model.Value.ConfirmSelect()
         //Enure it was either picked up or written to disk
         //If this timeout is <100ms (network latency?) it will usually fail w/ System.IO.IOException per message
         //TODO: Implement a retry system when the System.IO.IOException occurs

@@ -29,12 +29,12 @@ let publishMessages (pub:RabbitMqPublisher) routingKey count =
 
     pub.EnsureConfirms(100.)
 
-let processRabbit_CBR count persist =
-    printfn "Starting RabbitMQ with CBR processing, Persistence: %b" persist
+let processRabbit_CBR count =
+    printfn "Starting RabbitMQ with CBR processing"
     
-    let pub     = RabbitMqPublisher(host, Queue "cbr-main", persist)
-    let msg1Pub = RabbitMqPublisher(host, Queue "cbr-message1", persist)
-    let msg2Pub = RabbitMqPublisher(host, Queue "cbr-message2", persist)
+    let pub     = RabbitMqPublisher(host, Queue "cbr-main")
+    let msg1Pub = RabbitMqPublisher(host, Queue "cbr-message1")
+    let msg2Pub = RabbitMqPublisher(host, Queue "cbr-message2")
     let sub     = RabbitMqSubscriber(host, "cbr-main")
     let msg1Sub = RabbitMqSubscriber(host, "cbr-message1")
     let msg2Sub = RabbitMqSubscriber(host, "cbr-message2")
@@ -62,10 +62,10 @@ let processRabbit_CBR count persist =
     msg1Sub.Start |> ignore
     msg2Sub.Start |> ignore
     
-let processRabbit_Routing count persist =
-    printfn "Starting RabbitMQ with Routing processing, Persistence: %b" persist
+let processRabbit_Routing count =
+    printfn "Starting RabbitMQ with Routing processing"
     
-    let pub     = RabbitMqPublisher(host, Exchange "amq.direct", persist)
+    let pub     = RabbitMqPublisher(host, Exchange "amq.direct")
     let msg1Sub = RabbitMqSubscriber(host, "routing-message1")
     let msg2Sub = RabbitMqSubscriber(host, "routing-message2")
 
@@ -95,12 +95,12 @@ let main argv =
     // Don't be a jerk and enter letters...or do; it really doesn't matter to me. :)
     let count = System.Console.ReadLine() |> System.Int32.Parse
     
-    processRabbit_CBR count true
+    processRabbit_CBR count
     
     printfn "\nPress enter to start the next test after the results of the first post here"; 
     System.Console.ReadLine() |> ignore
 
-    processRabbit_Routing count true
+    processRabbit_Routing count
 
     System.Console.ReadLine() |> ignore
     0 // return an integer exit code
