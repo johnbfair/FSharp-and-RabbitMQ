@@ -127,9 +127,3 @@
                 let msg = message2Serializer.Value.Deserialize(extMsg) 
                 msg.MessageTag <- tag
                 msg |> x.Post
-
-        interface IDisposable with
-            member this.Dispose() = 
-                timeKeeper |> Agent.stop
-                accountant |> Agent.stop
-                supervisor |> Agent.stop
